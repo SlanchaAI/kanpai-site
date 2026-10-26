@@ -1,0 +1,29 @@
+name: Whole dependency verification
+on:
+  pull_request:
+  push:
+    branches: [deploy]
+permissions:
+  contents: read
+jobs:
+  whole-deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No third-party actions or action dependency graph. Fetch the exact
+      # tested commit through GitHub's API using the runner-provided CLI.
+      - name: Fetch source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          gh --version
+          mkdir -p "$GITHUB_WORKSPACE/source"
+          gh api "repos/$REPOSITORY/tarball/$REVISION" > "$GITHUB_WORKSPACE/source.tar.gz"
+          tar -xzf "$GITHUB_WORKSPACE/source.tar.gz" --strip-components=1 -C "$GITHUB_WORKSPACE/source"
+          rm "$GITHUB_WORKSPACE/source.tar.gz"
+      - name: Verify complete dependency inventory and site
+        working-directory: source
+        run: bash tests/verify_whole_deps.sh
