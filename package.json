@@ -1,0 +1,20 @@
+{
+  "name": "kanpai-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node tests/whole-lint.mjs lint",
+    "typecheck": "node tests/whole-lint.mjs typecheck",
+    "verify": "bash tests/verify_whole_lint.sh"
+  },
+  "engines": { "node": ">=22.22.0" },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.19.15",
+    "eslint": "10.13.0",
+    "html-validate": "11.17.0",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0",
+    "typescript": "6.0.3"
+  }
+}

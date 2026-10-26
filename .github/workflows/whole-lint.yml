@@ -1,0 +1,18 @@
+name: Whole-source lint and type checks
+on:
+  pull_request:
+  push:
+    branches: [deploy]
+permissions:
+  contents: read
+jobs:
+  whole-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: npm ci --ignore-scripts
+      - run: bash tests/verify_whole_lint.sh
