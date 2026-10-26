@@ -1,6 +1,7 @@
 """Offline browser contracts and fail-closed whole-repository inventory."""
 import functools
 import http.server
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,24 @@ def audit(paths):
     if missing or stale:
         raise ValueError(f'Unmapped files: {missing}; stale inventory: {stale}')
     return INVENTORY
+
+
+class BrowserResult(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.inside = False
+        self.values = []
+
+    def handle_starttag(self, tag, attrs):
+        self.inside = tag == 'pre' and dict(attrs).get('id') == 'result'
+
+    def handle_endtag(self, tag):
+        if tag == 'pre':
+            self.inside = False
+
+    def handle_data(self, data):
+        if self.inside:
+            self.values.append(data)
 
 
 # Browser-native constraint validation and FormData; never submit to an external service.
@@ -123,6 +142,15 @@ class WholeTests(unittest.TestCase):
             with self.subTest(paths=paths), self.assertRaises(ValueError):
                 audit(paths)
 
+    def test_browser_result_rejects_script_literals_and_failures(self):
+        for markup in [BROWSER_TEST, '<pre id="result">FAIL: validation</pre>', '<pre>PASS</pre>']:
+            parser = BrowserResult()
+            parser.feed(markup)
+            self.assertNotEqual(parser.values, ['PASS'])
+        parser = BrowserResult()
+        parser.feed('<pre id="result">PASS</pre>')
+        self.assertEqual(parser.values, ['PASS'])
+
     def test_browser(self):
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(ROOT)))
         worker = threading.Thread(target=server.serve_forever, daemon=True)
@@ -140,7 +168,9 @@ class WholeTests(unittest.TestCase):
                             '--dump-dom', f'http://127.0.0.1:{server.server_port}{path}',
                         ], capture_output=True, text=True, timeout=60)
                         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-                        self.assertIn('<pre id="result">PASS</pre>', result.stdout, result.stdout[-3000:])
+                        parser = BrowserResult()
+                        parser.feed(result.stdout)
+                        self.assertEqual(parser.values, ['PASS'], result.stdout[-3000:])
                         evidence.append({'page': path, 'width': width, 'result': 'passed'})
         finally:
             server.shutdown()
@@ -153,7 +183,9 @@ if __name__ == '__main__':
     OUTPUT.mkdir(exist_ok=True)
     tracer = trace.Trace(count=True, trace=False, ignoredirs=[os.path.dirname(os.__file__)])
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(WholeTests)
+    threading.settrace(tracer.globaltrace)
     result = tracer.runfunc(unittest.TextTestRunner(verbosity=2).run, suite)
+    threading.settrace(None)
     counts = tracer.results().counts
     coverage = {}
     # Enumerate every Python file before consulting counts: unimported modules get zero.

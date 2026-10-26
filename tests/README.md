@@ -29,3 +29,7 @@ browser assertions are injected only by the loopback fixture server.
 CI uploads inventory, browser/static coverage, Python line reports and summary,
 even on failure. Coverage is distinct from executable-code coverage for HTML/CSS:
 all three static assets are loaded and their behavior checked in each scenario.
+
+Browser result parsing must inspect the rendered `pre#result` node. Searching dump
+text for a PASS literal can match unexecuted injected script source; regression
+checks reject script literals, missing result IDs and explicit failures.
